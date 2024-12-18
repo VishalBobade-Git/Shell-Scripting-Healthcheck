@@ -1,0 +1,71 @@
+#!/bin/bash
+
+# Define log file path
+LOG_FILE="/root/helthcheck/logfile.txt"
+
+# Function to log output to the file
+log_to_file() {
+    echo "$1" >> $LOG_FILE
+}
+
+# Check if MySQL process is running
+check_mysql() {
+    echo "Checking MySQL process..."
+    MYSQL_PROCESS=$(ps -ef | grep mysql | grep -v grep)
+    if [[ -n "$MYSQL_PROCESS" ]]; then
+        log_to_file "MySQL is running."
+    else
+        log_to_file "MySQL is NOT running."
+    fi
+}
+
+# Check if a URL is accessible
+check_url() {
+    local url=$1
+    echo "Checking if URL $url is accessible..."
+    HTTP_STATUS=$(curl -o /dev/null -s -w "%{http_code}" $url)
+    
+    if [[ "$HTTP_STATUS" -eq 200 ]]; then
+        log_to_file "URL $url is accessible."
+    else
+        log_to_file "URL $url is NOT accessible. HTTP Status: $HTTP_STATUS"
+    fi
+}
+
+# Check if Docker process is running
+check_docker() {
+    echo "Checking Docker process..."
+    DOCKER_PROCESS=$(ps -ef | grep docker | grep -v grep)
+    if [[ -n "$DOCKER_PROCESS" ]]; then
+        log_to_file "Docker is running."
+    else
+        log_to_file "Docker is NOT running."
+    fi
+}
+
+# Check disk space usage
+check_disk_space() {
+    echo "Checking disk space usage..."
+    DISK_USAGE=$(df -h / | awk 'NR==2 {print $5}') # Extracts the percentage used for the root filesystem
+    log_to_file "Disk space usage for root filesystem: $DISK_USAGE"
+    # Warn if disk usage is above 80%
+    USAGE_PERCENT=$(echo $DISK_USAGE | tr -d '%')
+    if [[ $USAGE_PERCENT -ge 80 ]]; then
+        log_to_file "WARNING: Disk space usage is high ($DISK_USAGE)."
+    else
+        log_to_file "Disk space usage is within normal limits ($DISK_USAGE)."
+    fi
+}
+
+# Initialize log file
+echo "Health Check Run at $(date)" > $LOG_FILE
+
+# Run the checks
+check_mysql
+check_url "http://13.233.152.199:8080/"
+check_docker
+check_disk_space
+
+# Add final log entry
+log_to_file "Health check completed at $(date)"
+./send_email.sh
